@@ -1,0 +1,61 @@
+# Указываем версию формата docker-compose файла
+version: "3.3"
+
+# Раздел с определением сервисов (контейнеров)
+services:
+  # Сервис GitLab CE (Community Edition)
+  gitlab:
+    # Используем официальный образ GitLab CE версии 16.4.3
+    # CE - бесплатная версия, есть также EE (Enterprise Edition)
+    image: gitlab/gitlab-ce:16.4.3-ce.0
+    # Имя контейнера для удобного управления
+    container_name: gitlab
+    # Имя хоста внутри контейнера (используется GitLab для генерации URL)
+    hostname: gitlab.local
+    # Политика перезапуска: всегда перезапускать при падении или перезагрузке Docker
+    restart: always
+    # Проброс портов с хоста на контейнер
+    ports:
+      # HTTPS: порт 443 на хосте → порт 443 в контейнере
+      # GitLab работает по HTTPS
+      - "443:443"
+      # HTTP: порт 80 на хосте → порт 80 в контейнере
+      # Обычно используется для редиректа на HTTPS
+      - "80:80"
+    # Тома (volumes) для хранения данных и конфигурации
+    volumes:
+      # Именованный том для хранения конфигурации GitLab
+      - gitlab_config:/etc/gitlab
+      # Именованный том для хранения логов GitLab
+      - gitlab_logs:/var/log/gitlab
+      # Именованный том для хранения данных GitLab (репозитории, база данных и т.д.)
+      - gitlab_data:/var/opt/gitlab
+      # Локальная папка с SSL сертификатами монтируется как read-only
+      # Правильный путь для GitLab: /etc/gitlab/ssl/
+      - ./certs:/etc/gitlab/ssl:ro
+      # Файл с начальным паролем root пользователя
+      # Монтируется как read-only файл
+      - ./secrets/gitlab_root_password.txt:/root_password:ro
+    # Переменные окружения для настройки GitLab
+    environment:
+      # GITLAB_OMNIBUS_CONFIG - специальная переменная для конфигурации GitLab
+      # Содержит Ruby код, который будет выполнен при инициализации
+      GITLAB_OMNIBUS_CONFIG: |
+        # Внешний URL GitLab (должен совпадать с адресом, по которому доступен)
+        external_url 'https://localhost'
+        # Путь к SSL сертификату внутри контейнера
+        nginx['ssl_certificate'] = "/etc/gitlab/ssl/cert.pem"
+        # Путь к приватному ключу SSL сертификата
+        nginx['ssl_certificate_key'] = "/etc/gitlab/ssl/key.pem"
+        # Файл с начальным паролем для пользователя root
+        # GitLab прочитает этот файл при первом запуске
+        gitlab_rails['initial_root_password_file'] = "/root_password"
+
+# Раздел определения томов (volumes) для GitLab
+volumes:
+  # Именованный том для конфигурации GitLab
+  gitlab_config:
+  # Именованный том для логов GitLab
+  gitlab_logs:
+  # Именованный том для данных GitLab (самый важный - содержит репозитории!)
+  gitlab_data:
